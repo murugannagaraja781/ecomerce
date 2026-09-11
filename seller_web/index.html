@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="refresh" content="0; url=/ecomerce/customer_web/#/seller">
+  <title>Flipkart Seller Hub - Merchant Management</title>
+  <script>
+    window.location.replace("/ecomerce/customer_web/#/seller");
+  </script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      padding: 32px;
+      border-radius: 12px;
+      text-align: center;
+      max-width: 400px;
+    }
+    .spinner {
+      border: 4px solid rgba(255,255,255,0.1);
+      border-left-color: #f59e0b;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    a { color: #f59e0b; text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Flipkart Seller Hub</h2>
+    <p>Loading Merchant Portal, Catalog & Inventory Suite...</p>
+    <div class="spinner"></div>
+    <p><a href="/ecomerce/customer_web/#/seller">Click here if not redirected automatically</a></p>
+  </div>
+</body>
+</html>
