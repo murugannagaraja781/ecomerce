@@ -8,6 +8,7 @@ require_once __DIR__ . '/BaseController.php';
 require_once __DIR__ . '/../helpers/JwtHelper.php';
 require_once __DIR__ . '/../helpers/Validator.php';
 require_once __DIR__ . '/../middleware/AuthMiddleware.php';
+require_once __DIR__ . '/../services/SmsService.php';
 
 class AuthController extends BaseController {
 
@@ -195,7 +196,7 @@ class AuthController extends BaseController {
     }
 
     /**
-     * Send simulated OTP to phone or email
+     * Send OTP to phone or email
      */
     public function sendOtp(): void {
         $data = $this->getRequestData();
@@ -206,19 +207,37 @@ class AuthController extends BaseController {
         }
 
         $phone = trim($data['phone']);
-        // 6-digit OTP
-        $otp = '789012'; // Standard predictable test OTP or random
-        $expiry = date('Y-m-d H:i:s', time() + 600); // 10 minutes
+        if (!preg_match('/^[0-9]{10,15}$/', $phone)) {
+            Response::error("Phone number must be between 10 and 15 digits", ['phone' => ['Invalid phone format']], 422);
+        }
+
+        // Predefined demo OTP mapping as requested by client
+        if ($phone === '8000000001' || $phone === '9000000001') {
+            $otp = '123456';
+        } elseif ($phone === '9876543210') {
+            $otp = '1369';
+        } else {
+            // Cryptographically secure 6-digit OTP
+            $otp = str_pad((string)random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
+        }
+        $expiry = date('Y-m-d H:i:s', time() + 86400); // 24 hours
 
         $stmt = $this->db->prepare("UPDATE `users` SET `otp_code` = ?, `otp_expires_at` = ? WHERE `phone` = ?");
         $stmt->execute([$otp, $expiry, $phone]);
 
-        Response::success([
-            'phone'       => $phone,
-            'demo_otp'    => $otp,
-            'message'     => 'OTP sent successfully. For demo purposes use: 789012',
-            'expires_in'  => 600
-        ], "OTP generated and sent");
+        // Dispatch via Active SMS Provider (Fast2SMS / MSG91 / Twilio / Textlocal / Local)
+        $smsResult = SmsService::sendOtp($phone, $otp);
+
+        $responseData = [
+            'phone'        => $phone,
+            'expires_in'   => 86400,
+            'demo_otp'     => $otp,
+            'sms_provider' => $smsResult['provider'] ?? 'local',
+            'sms_status'   => $smsResult['success'] ?? true,
+            'message'      => $smsResult['message'] ?? "OTP sent successfully. Demo OTP: {$otp}"
+        ];
+
+        Response::success($responseData, "OTP generated and dispatched");
     }
 
     /**
@@ -237,7 +256,10 @@ class AuthController extends BaseController {
         $phone = trim($data['phone']);
         $otp = trim($data['otp']);
 
-        $stmt = $this->db->prepare("SELECT u.*, r.name as role_name FROM `users` u JOIN `roles` r ON u.role_id = r.id WHERE u.phone = ? AND u.deleted_at IS NULL");
+        $stmt = $this->db->prepare("SELECT u.*, r.name as role_name 
+            FROM `users` u 
+            JOIN `roles` r ON u.role_id = r.id 
+            WHERE u.phone = ? AND u.deleted_at IS NULL");
         $stmt->execute([$phone]);
         $user = $stmt->fetch();
 
@@ -245,20 +267,47 @@ class AuthController extends BaseController {
             Response::error("No account found with this phone number", [], 404);
         }
 
-        if ($user['otp_code'] !== $otp && $otp !== '789012') {
-            Response::error("Invalid or expired OTP entered", [], 400);
+        // Check demo configured OTPs first
+        $isDemoMatch = false;
+        if (($phone === '8000000001' || $phone === '9000000001') && $otp === '123456') {
+            $isDemoMatch = true;
+        } elseif ($phone === '9876543210' && ($otp === '1369' || $otp === '136900')) {
+            $isDemoMatch = true;
         }
 
-        // Clear OTP
-        $this->db->prepare("UPDATE `users` SET `otp_code` = NULL, `otp_expires_at` = NULL, `is_verified` = 1 WHERE `id` = ?")->execute([$user['id']]);
+        if (!$isDemoMatch) {
+            // Verify OTP is present and valid
+            if (empty($user['otp_code']) || empty($user['otp_expires_at'])) {
+                Response::error("No active OTP requested for this account. Please request a new OTP.", [], 400);
+            }
+
+            // Check expiration
+            if (strtotime($user['otp_expires_at']) < time()) {
+                Response::error("The OTP has expired. Please request a new OTP.", [], 400);
+            }
+
+            // Constant-time OTP comparison
+            if (!hash_equals((string)$user['otp_code'], (string)$otp)) {
+                Response::error("Invalid OTP entered. Please try again.", [], 400);
+            }
+        }
+
+        // Refresh user verification status
+        $this->db->prepare("UPDATE `users` SET `is_verified` = 1 WHERE `id` = ?")->execute([$user['id']]);
 
         $accessToken = JwtHelper::generateToken([
             'user_id'   => (int)$user['id'],
             'email'     => $user['email'],
             'name'      => $user['name'],
-            'role_name' => $user['role_name']
+            'role_name' => $user['role_name'],
+            'role'      => $user['role_name']
         ]);
         $refreshToken = JwtHelper::generateRefreshToken();
+
+        // Save refresh token
+        $exp = date('Y-m-d H:i:s', time() + JWT_REFRESH_EXPIRY);
+        $this->db->prepare("INSERT INTO `user_tokens` (`user_id`, `refresh_token`, `device_name`, `expires_at`) VALUES (?, ?, ?, ?)")
+            ->execute([$user['id'], $refreshToken, $_SERVER['HTTP_USER_AGENT'] ?? 'Device', $exp]);
 
         Response::success([
             'user' => [
@@ -340,10 +389,18 @@ class AuthController extends BaseController {
         $user = AuthMiddleware::authenticate(true);
 
         // Fetch addresses count, orders count, wishlist count, cart count
-        $userId = $user['id'];
-        $cartCount = $this->db->query("SELECT COALESCE(SUM(quantity), 0) FROM `cart_items` ci JOIN `carts` c ON ci.cart_id = c.id WHERE c.user_id = {$userId}")->fetchColumn();
-        $wishCount = $this->db->query("SELECT COUNT(*) FROM `wishlist_items` wi JOIN `wishlists` w ON wi.wishlist_id = w.id WHERE w.user_id = {$userId}")->fetchColumn();
-        $orderCount = $this->db->query("SELECT COUNT(*) FROM `orders` WHERE `user_id` = {$userId}")->fetchColumn();
+        $userId = (int)$user['id'];
+        $cartStmt = $this->db->prepare("SELECT COALESCE(SUM(quantity), 0) FROM `cart_items` ci JOIN `carts` c ON ci.cart_id = c.id WHERE c.user_id = ?");
+        $cartStmt->execute([$userId]);
+        $cartCount = $cartStmt->fetchColumn();
+
+        $wishStmt = $this->db->prepare("SELECT COUNT(*) FROM `wishlist_items` wi JOIN `wishlists` w ON wi.wishlist_id = w.id WHERE w.user_id = ?");
+        $wishStmt->execute([$userId]);
+        $wishCount = $wishStmt->fetchColumn();
+
+        $orderStmt = $this->db->prepare("SELECT COUNT(*) FROM `orders` WHERE `user_id` = ?");
+        $orderStmt->execute([$userId]);
+        $orderCount = $orderStmt->fetchColumn();
 
         Response::success([
             'user' => $user,

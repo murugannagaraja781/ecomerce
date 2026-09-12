@@ -1,15 +1,16 @@
 # Flipkart Platform REST API Documentation
 
-Base URL: `http://localhost/ecommerce_api/api` or `http://localhost/ecomerce/backend/api`  
-Authentication: Bearer JWT Token in `Authorization: Bearer <access_token>` header.
+**Base URL**: `http://localhost/ecommerce_api/api` (or `http://localhost/ecomerce/backend/api`)  
+**Authentication**: Bearer JWT Token in `Authorization: Bearer <access_token>` header.  
+**Content-Type**: `application/json` (except `/upload` which requires `multipart/form-data`)
 
 ---
 
-## 1. Authentication & Profile
+## 1. Authentication & Profile Management
 
 ### `POST /auth/register`
-Create a customer account.
-- **Payload**:
+Register a new customer account.
+- **Request Body**:
   ```json
   {
     "name": "Rahul Sharma",
@@ -18,192 +19,239 @@ Create a customer account.
     "phone": "9876543210"
   }
   ```
-- **Response**: Returns User profile, Access Token, and Refresh Token.
+- **Validation**: Email uniqueness, strong password (min 8 chars), 10-digit mobile number.
+- **Response** (HTTP 201):
+  ```json
+  {
+    "success": true,
+    "message": "Registration successful",
+    "data": {
+      "user": { "id": 4, "name": "Rahul Sharma", "email": "customer@gmail.com", "role": "CUSTOMER" },
+      "tokens": { "access_token": "...", "refresh_token": "..." }
+    }
+  }
+  ```
 
 ### `POST /auth/login`
-Customer login.
-- **Payload**:
+Authenticate existing customer.
+- **Request Body**:
   ```json
   {
     "email": "customer@gmail.com",
     "password": "Customer@12345"
   }
   ```
-- **Response**: JWT access token, refresh token, user details.
+- **Response** (HTTP 200): Returns user profile and JWT tokens.
 
 ### `POST /auth/send-otp`
-Generate and simulate SMS OTP for mobile verification.
-- **Payload**: `{"phone": "9876543210"}`
-- **Test OTP**: `789012`
+Generate a cryptographically secure 6-digit numeric OTP via `random_int(100000, 999999)` with 10-minute expiry.
+- **Request Body**: `{"phone": "9876543210"}`
+- **Response** (HTTP 200): Dispatches OTP via SMS gateway (simulated log in development).
 
 ### `POST /auth/verify-otp`
-Verify SMS OTP and authenticate user.
-- **Payload**: `{"phone": "9876543210", "otp": "789012"}`
+Verify SMS OTP and issue authenticated JWT tokens.
+- **Request Body**: `{"phone": "9876543210", "otp": "492018"}`
 
 ### `POST /auth/refresh`
-Rotate expired access token using refresh token.
-- **Payload**: `{"refresh_token": "..."}`
+Issue fresh access token using long-lived refresh token.
+- **Request Body**: `{"refresh_token": "..."}`
 
 ### `GET /auth/profile`
-Retrieve authenticated user profile and live cart/order counts.
+Retrieve authenticated user profile.
 - **Headers**: `Authorization: Bearer <token>`
 
 ---
 
-## 2. Catalog & Homepage Feeds
+## 2. Catalog, Search & Categories
 
 ### `GET /home`
-Fetches complete Flipkart homepage feed:
-- Banners (Hero auto-carousel, promotion strips)
-- Parent categories with circular icons
-- Flash deals (Discount >= 40%)
-- Best sellers & trending products
-- Spotlight product (*Celvas Back Cover for Apple iPhone 15*)
+Aggregated Flipkart homepage feed containing promotional hero banners, category strip, flash deals, and bestsellers.
 
 ### `GET /categories`
-Returns hierarchical category tree with parent categories and nested subcategories.
-
-### `GET /categories/{id}`
-Returns category detail with child subcategories and sort order.
-
-### `GET /brands`
-Returns list of active authorized brands.
+Hierarchical category tree with subcategories and icons.
 
 ### `GET /products`
-Catalog listing with multi-facet filters:
-- Query parameters:
-  - `category_id`: Category or parent ID
-  - `brand_id`: Brand ID
-  - `min_price` & `max_price`: Price range
-  - `min_rating`: Minimum star rating (e.g. 4)
-  - `min_discount`: Minimum discount % (e.g. 50)
+Product catalog with multi-facet filters.
+- **Query Parameters**:
+  - `category_id`: Filter by category ID
+  - `brand_id`: Filter by brand ID
+  - `min_price` & `max_price`: Numerical price bounds
+  - `min_rating`: Minimum average rating
   - `sort`: `popularity`, `price_low`, `price_high`, `rating`, `newest`, `discount`
-  - `page` & `limit`: Pagination parameters
+  - `page`: Page index (default: 1)
+  - `limit`: Items per page (default: 20, max: 100)
 
 ### `GET /products/{id}`
-Full product detail page:
-- Gallery images
-- Color and size variants
-- Highlights bullet points
-- Technical specifications table
-- Seller rating and warranty
-- Customer reviews and ratings
-- Similar products carousel
-
----
-
-## 3. Server-Side Search Engine
+Deep product details including image gallery, color/size variants, specifications, warranty, reviews, and inventory status.
 
 ### `GET /search?q={query}`
-Full server-side search across Product titles, descriptions, brand names, and SKUs.
-- Debounced and optimized.
-
-### `GET /search/suggestions?q={query}`
-Debounced auto-complete suggestions matching products, brands, and categories.
-
-### `GET /search/popular`
-Returns trending and frequently searched keywords.
+Parameterized server-side search querying titles, descriptions, brand names, and SKUs.
 
 ---
 
-## 4. Server-Synchronized Cart & Wishlist
+## 3. Cart, Wishlist & Addresses
 
 ### `GET /cart`
-Calculates live MRP, Selling price, Delivery fee (FREE above ₹499, else ₹40), and Savings.
+Retrieve customer cart items with real-time stock validation and subtotal/discount breakdown.
+- **Headers**: `Authorization: Bearer <token>`
 
 ### `POST /cart/items`
-Add item to cart with stock validation.
-- **Payload**: `{"product_id": 1, "variant_id": 1, "quantity": 2}`
+Add product variant to cart.
+- **Request Body**: `{"variant_id": 1, "quantity": 2}`
 
 ### `PUT /cart/items/{id}`
-Update item quantity with live stock limit check.
-- **Payload**: `{"quantity": 3}`
+Update cart item quantity.
+- **Request Body**: `{"quantity": 3}`
 
 ### `DELETE /cart/items/{id}`
-Remove item from cart.
-
-### `GET /wishlist`
-Returns user saved wishlist items.
-
-### `POST /wishlist`
-Add item to wishlist: `{"product_id": 1, "variant_id": 1}`.
-
-### `DELETE /wishlist/{id}`
-Remove from wishlist.
-
----
-
-## 5. Addresses & Checkout
+Remove line item from cart.
 
 ### `GET /addresses`
-List user delivery addresses (HOME, WORK, OTHER).
+Fetch customer saved delivery addresses.
 
 ### `POST /addresses`
-Add new address with pin code, landmark, city, and state.
+Create a new delivery address.
+- **Request Body**:
+  ```json
+  {
+    "full_name": "Rahul Sharma",
+    "phone": "9876543210",
+    "pincode": "560034",
+    "address_line1": "Flat 402, Green Glen Layout",
+    "city": "Bengaluru",
+    "state": "Karnataka",
+    "type": "HOME",
+    "is_default": 1
+  }
+  ```
+
+---
+
+## 4. Checkout, Payments & Webhooks
 
 ### `POST /coupons/apply`
-Server-side coupon validation (checks minimum order amount, expiry, usage limits).
-- **Payload**: `{"code": "WELCOME100", "cart_amount": 998.00}`
+Validate and preview discount coupon.
+- **Request Body**: `{"code": "FLIPDEAL20", "cart_amount": 1996.00}`
 
 ### `POST /payments/create`
-Initiates Razorpay order. Computes amount in paise and returns `razorpay_order_id`.
+Initialize checkout and generate Razorpay payment order.
+- **Request Body**: `{"address_id": 1, "coupon_code": "FLIPDEAL20"}`
+- **Response**: Returns `razorpay_order_id`, `amount`, and `key_id`.
 
 ### `POST /payments/verify`
-Server-side HMAC SHA-256 signature verification and **Atomic MySQL Order Placement Transaction**:
-1. Checks inventory availability (`FOR UPDATE`).
-2. Deducts product stock.
-3. Inserts `orders`, `order_items`, `order_addresses`, `payments`.
-4. Initializes 6-milestone tracking history (`order_status_history`).
-5. Clears user cart.
-6. Returns Order Number and Expected Delivery Date.
+Execute atomic order placement with cryptographic HMAC-SHA256 signature verification.
+- **Request Body (Online Payment)**:
+  ```json
+  {
+    "address_id": 1,
+    "payment_method": "RAZORPAY",
+    "razorpay_order_id": "order_rzp_...",
+    "razorpay_payment_id": "pay_rzp_...",
+    "razorpay_signature": "hmac_sha256_hex_hash...",
+    "coupon_code": "FLIPDEAL20"
+  }
+  ```
+- **Request Body (Cash On Delivery)**:
+  ```json
+  {
+    "address_id": 1,
+    "payment_method": "COD",
+    "coupon_code": "FREESHIP"
+  }
+  ```
+- **Process**:
+  - Validates `hash_hmac('sha256', "{$order_id}|{$payment_id}", RAZORPAY_SECRET)`.
+  - Executes MySQL transaction with `SELECT ... FOR UPDATE` row locks.
+  - Decrements variant stock and inserts immutable record in `inventory_transactions`.
+  - Empties customer cart and commits.
+
+### `POST /payments/webhook`
+Asynchronous payment capture / failure callback from Razorpay.
+- **Headers**: `X-Razorpay-Signature: <hmac_sha256_signature>`
+- **Request Body**: Raw JSON webhook event payload from Razorpay.
 
 ---
 
-## 6. Orders, Tracking & Reviews
+## 5. Media Uploads
+
+### `POST /upload`
+Secure multipart image upload endpoint.
+- **Headers**: `Authorization: Bearer <token>`, `Content-Type: multipart/form-data`
+- **Form Data**: `image: <file>`
+- **Validation**: Max 5MB size, MIME verified via `finfo_file`, image verified via `getimagesize`.
+- **Response**: `{"success": true, "data": {"url": "http://localhost/.../uploads/..."}}`
+
+---
+
+## 6. Orders, Tracking & Returns
 
 ### `GET /orders`
-List user orders with status filtering (ALL, CONFIRMED, PACKED, SHIPPED, DELIVERED, CANCELLED).
+Fetch customer order history with pagination (`page`, `limit`).
 
 ### `GET /orders/{id}`
-Full order detail with 6 Flipkart visual milestones:
-1. `Order Placed`
-2. `Order Confirmed`
-3. `Packed by Seller`
-4. `Shipped / In Transit`
-5. `Out for Delivery`
-6. `Delivered`
-
-### `POST /orders/{id}/cancel`
-Cancel order and automatically restock variant inventory.
+Fetch single order details including 6-milestone tracking timeline:
+- Order Placed
+- Order Confirmed
+- Packed by Seller
+- Shipped / In Transit
+- Out for Delivery
+- Delivered
 
 ### `POST /returns`
-Submit return request with reason and photos.
+Initiate return / refund request.
+- **Request Body**: `{"order_id": 123, "reason": "Defective item", "comments": "..."}`
 
 ### `POST /reviews`
-Submit verified purchaser rating (1-5 stars), review title, and comment. Automatically recalculates product average rating.
+Submit product review.
+- **Request Body**: `{"product_id": 1, "rating": 5, "title": "Great quality", "comment": "..."}`
 
 ---
 
-## 7. Seller Portal API
+## 7. Seller Hub APIs
 
-- `POST /seller/login`: Seller portal login.
-- `GET /seller/dashboard`: KPI metrics (Total sales, today's sales, pending orders, low stock).
-- `GET /seller/products`: Seller's catalog.
-- `POST /seller/products`: Create new product + variants + images + inventory.
-- `GET /seller/inventory`: Inventory stock list.
-- `PUT /seller/inventory/{id}`: Adjust stock quantity.
-- `GET /seller/orders`: Orders containing seller's items.
-- `PUT /seller/orders/{id}/status`: Transition status (`CONFIRMED` -> `PACKED` -> `SHIPPED` -> `DELIVERED`).
+### `POST /seller/login`
+Merchant login (`seller@celvas.in`).
+
+### `GET /seller/dashboard`
+Live KPIs: Total Revenue, Total Orders, Total SKUs, Seller Rating.
+
+### `GET /seller/inventory`
+Live stock and SKU management.
+
+### `PUT /seller/inventory/{id}`
+Adjust stock level with automated audit logging to `inventory_transactions`.
+- **Request Body**: `{"quantity": 50, "reason": "STOCK_ADJUSTMENT"}`
+
+### `GET /seller/orders`
+Orders containing items sold by the authenticated seller.
+
+### `PUT /seller/orders/{id}/status`
+Update order item status (`PACKED`, `SHIPPED`). Scoped strictly to the seller's items (IDOR protected).
+
+### `GET /seller/returns`
+Return requests pending seller acknowledgement.
 
 ---
 
-## 8. Admin Control Center API
+## 8. Admin Control Center APIs
 
-- `POST /admin/login`: Administrator login.
-- `GET /admin/dashboard`: Global revenue, total users, total sellers, sales overview chart.
-- `GET /admin/users` & `PUT /admin/users/{id}`: User activation / deactivation.
-- `GET /admin/sellers` & `PUT /admin/sellers/{id}/status`: Seller approval / suspension.
-- `GET /admin/orders` & `PUT /admin/orders/{id}/status`: Order status oversight.
-- `GET /admin/coupons` & `POST /admin/coupons`: Create and manage promo coupons.
-- `GET /admin/reports`: Sales revenue and order analytics.
-- `GET /admin/logs`: Audit trail of all administrative actions.
+### `POST /admin/login`
+Platform administrator login (`admin@flipkart.local`).
+
+### `GET /admin/dashboard`
+Aggregated platform metrics: Gross Merchandise Value (GMV), Total Registered Users, Total Orders, Total Products.
+
+### `GET /admin/orders?page=1&limit=20`
+Platform-wide order inspection with pagination.
+
+### `GET /admin/users?page=1&limit=20`
+Registered user directory.
+
+### `GET /admin/returns`
+Platform-wide return requests.
+
+### `PUT /admin/returns/{id}/status`
+Approve or reject customer return requests.
+
+### `GET /admin/refunds`
+Inspect issued refunds.

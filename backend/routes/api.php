@@ -13,6 +13,7 @@ require_once __DIR__ . '/../controllers/CheckoutController.php';
 require_once __DIR__ . '/../controllers/OrderController.php';
 require_once __DIR__ . '/../controllers/SellerController.php';
 require_once __DIR__ . '/../controllers/AdminController.php';
+require_once __DIR__ . '/../controllers/UploadController.php';
 
 // ----------------------------------------------------
 // 1. Authentication & Profile
@@ -72,6 +73,8 @@ $router->put('/api/addresses/{id}/default', [AddressController::class, 'setDefau
 $router->post('/api/coupons/apply', [CheckoutController::class, 'applyCoupon']);
 $router->post('/api/payments/create', [CheckoutController::class, 'createRazorpayOrder']);
 $router->post('/api/payments/verify', [CheckoutController::class, 'verifyPaymentAndPlaceOrder']);
+$router->post('/api/payments/webhook', [CheckoutController::class, 'handleWebhook']);
+$router->post('/api/upload', [UploadController::class, 'uploadImage']);
 
 // ----------------------------------------------------
 // 7. Orders, Tracking, Returns & Reviews
@@ -94,6 +97,7 @@ $router->get('/api/seller/inventory', [SellerController::class, 'getInventory'])
 $router->put('/api/seller/inventory/{id}', [SellerController::class, 'updateInventory']);
 $router->get('/api/seller/orders', [SellerController::class, 'getOrders']);
 $router->put('/api/seller/orders/{id}/status', [SellerController::class, 'updateOrderStatus']);
+$router->get('/api/seller/returns', [SellerController::class, 'getReturns']);
 
 // ----------------------------------------------------
 // 9. Admin Control Center APIs
@@ -113,3 +117,23 @@ $router->get('/api/admin/coupons', [AdminController::class, 'getCoupons']);
 $router->post('/api/admin/coupons', [AdminController::class, 'createCoupon']);
 $router->get('/api/admin/reports', [AdminController::class, 'getReports']);
 $router->get('/api/admin/logs', [AdminController::class, 'getLogs']);
+$router->get('/api/admin/returns', [AdminController::class, 'getReturns']);
+$router->put('/api/admin/returns/{id}/status', [AdminController::class, 'updateReturnStatus']);
+$router->get('/api/admin/refunds', [AdminController::class, 'getRefunds']);
+$router->post('/api/admin/refunds', [AdminController::class, 'createRefund']);
+$router->get('/api/admin/settings', [AdminController::class, 'getSystemSettings']);
+$router->put('/api/admin/settings', [AdminController::class, 'updateSystemSettings']);
+$router->get('/api/admin/settings/env', [AdminController::class, 'getRawEnv']);
+$router->put('/api/admin/settings/env', [AdminController::class, 'saveRawEnv']);
+$router->get('/api/settings/public', [AdminController::class, 'getPublicSettings']);
+$router->put('/api/admin/settings/branding', [AdminController::class, 'updateBrandingSettings']);
+$router->get('/api/admin/products', [AdminController::class, 'getProducts']);
+$router->get('/api/admin/products/{id}', [AdminController::class, 'getProductById']);
+$router->post('/api/admin/products', [AdminController::class, 'createProduct']);
+$router->put('/api/admin/products/{id}', [AdminController::class, 'updateProduct']);
+$router->post('/api/admin/settings/test-payment', [AdminController::class, 'testPaymentGateway']);
+$router->post('/api/admin/settings/test-sms', [AdminController::class, 'testSmsGateway']);
+$router->post('/api/admin/settings/test-fcm', [AdminController::class, 'testFcmNotification']);
+
+
+

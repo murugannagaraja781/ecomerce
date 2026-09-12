@@ -27,20 +27,33 @@ class SellerController extends BaseController {
         $sellerId = $seller['id'];
 
         // Total sales revenue
-        $revenue = $this->db->query("SELECT COALESCE(SUM(total_price), 0) FROM `order_items` WHERE `seller_id` = {$sellerId} AND `status` != 'CANCELLED'")->fetchColumn();
+        $revStmt = $this->db->prepare("SELECT COALESCE(SUM(total_price), 0) FROM `order_items` WHERE `seller_id` = ? AND `status` != 'CANCELLED'");
+        $revStmt->execute([$sellerId]);
+        $revenue = (float)$revStmt->fetchColumn();
 
         // Total orders
-        $totalOrders = $this->db->query("SELECT COUNT(DISTINCT order_id) FROM `order_items` WHERE `seller_id` = {$sellerId}")->fetchColumn();
+        $totStmt = $this->db->prepare("SELECT COUNT(DISTINCT order_id) FROM `order_items` WHERE `seller_id` = ?");
+        $totStmt->execute([$sellerId]);
+        $totalOrders = (int)$totStmt->fetchColumn();
 
         // Pending orders
-        $pendingOrders = $this->db->query("SELECT COUNT(DISTINCT order_id) FROM `order_items` WHERE `seller_id` = {$sellerId} AND `status` IN ('PLACED', 'CONFIRMED', 'PACKED')")->fetchColumn();
+        $pendStmt = $this->db->prepare("SELECT COUNT(DISTINCT order_id) FROM `order_items` WHERE `seller_id` = ? AND `status` IN ('PLACED', 'CONFIRMED', 'PACKED')");
+        $pendStmt->execute([$sellerId]);
+        $pendingOrders = (int)$pendStmt->fetchColumn();
 
         // Total products & low stock
-        $productsCount = $this->db->query("SELECT COUNT(*) FROM `products` WHERE `seller_id` = {$sellerId} AND `deleted_at` IS NULL")->fetchColumn();
-        $lowStockCount = $this->db->query("SELECT COUNT(*) FROM `inventory` WHERE `seller_id` = {$sellerId} AND `quantity` <= `low_stock_threshold`")->fetchColumn();
+        $prodStmt = $this->db->prepare("SELECT COUNT(*) FROM `products` WHERE `seller_id` = ? AND `deleted_at` IS NULL");
+        $prodStmt->execute([$sellerId]);
+        $productsCount = (int)$prodStmt->fetchColumn();
+
+        $lowStmt = $this->db->prepare("SELECT COUNT(*) FROM `inventory` WHERE `seller_id` = ? AND `quantity` <= `low_stock_threshold`");
+        $lowStmt->execute([$sellerId]);
+        $lowStockCount = (int)$lowStmt->fetchColumn();
 
         // Return requests
-        $returnsCount = $this->db->query("SELECT COUNT(*) FROM `returns` WHERE `seller_id` = {$sellerId} AND `status` = 'REQUESTED'")->fetchColumn();
+        $retStmt = $this->db->prepare("SELECT COUNT(*) FROM `returns` WHERE `seller_id` = ? AND `status` = 'REQUESTED'");
+        $retStmt->execute([$sellerId]);
+        $returnsCount = (int)$retStmt->fetchColumn();
 
         // Recent Orders
         $recentStmt = $this->db->prepare("SELECT oi.*, o.order_number, o.created_at, o.payment_status 
@@ -206,12 +219,21 @@ class SellerController extends BaseController {
             Response::error("Inventory record not found", [], 404);
         }
 
+        $oldQty = (int)$inv['quantity'];
+        $diff = $newQty - $oldQty;
+
         $this->db->prepare("UPDATE `inventory` SET `quantity` = ? WHERE `id` = ?")->execute([$newQty, $invId]);
         if ($inv['variant_id']) {
             $this->db->prepare("UPDATE `product_variants` SET `stock` = ? WHERE `id` = ?")->execute([$newQty, $inv['variant_id']]);
+
+            // Audit log in inventory_transactions
+            $this->db->prepare("INSERT INTO `inventory_transactions` 
+                (`inventory_id`, `type`, `quantity_change`, `previous_quantity`, `new_quantity`, `notes`) 
+                VALUES (?, 'ADJUSTMENT', ?, ?, ?, ?)")
+                ->execute([$invId, $diff, $oldQty, $newQty, "Stock adjustment from {$oldQty} to {$newQty} by merchant"]);
         }
 
-        Response::success(['id' => $invId, 'quantity' => $newQty], "Stock updated successfully");
+        Response::success(['id' => $invId, 'quantity' => $newQty, 'adjustment' => $diff], "Stock updated successfully");
     }
 
     /**
@@ -254,13 +276,41 @@ class SellerController extends BaseController {
             Response::error("Forbidden: You cannot modify orders from other sellers", [], 403);
         }
 
-        $this->db->prepare("UPDATE `orders` SET `status` = ? WHERE `id` = ?")->execute([$status, $orderId]);
+        // Update this seller's items in the order
         $this->db->prepare("UPDATE `order_items` SET `status` = ? WHERE `order_id` = ? AND `seller_id` = ?")->execute([$status, $orderId, $seller['id']]);
+
+        // Check if all items in order have reached this or final status
+        $pendingItemsStmt = $this->db->prepare("SELECT COUNT(*) FROM `order_items` WHERE `order_id` = ? AND `status` != ?");
+        $pendingItemsStmt->execute([$orderId, $status]);
+        $remaining = (int)$pendingItemsStmt->fetchColumn();
+
+        if ($remaining === 0) {
+            $this->db->prepare("UPDATE `orders` SET `status` = ? WHERE `id` = ?")->execute([$status, $orderId]);
+        }
 
         // Insert timeline record
         $this->db->prepare("INSERT INTO `order_status_history` (`order_id`, `status`, `notes`, `updated_by_user_id`) VALUES (?, ?, ?, ?)")
             ->execute([$orderId, $status, "Order updated to {$status} by seller ({$seller['store_name']})", $seller['user_id']]);
 
         Response::success(['order_id' => $orderId, 'status' => $status], "Order status updated to {$status}");
+    }
+
+    /**
+     * Seller Returns Management
+     */
+    public function getReturns(): void {
+        $seller = $this->getAuthenticatedSeller();
+        $sellerId = $seller['id'];
+
+        $stmt = $this->db->prepare("SELECT r.*, o.order_number, u.name as customer_name,
+            oi.product_title, oi.variant_title
+            FROM `returns` r
+            JOIN `orders` o ON r.order_id = o.id
+            JOIN `users` u ON r.user_id = u.id
+            JOIN `order_items` oi ON r.order_item_id = oi.id
+            WHERE r.seller_id = ?
+            ORDER BY r.id DESC");
+        $stmt->execute([$sellerId]);
+        Response::success($stmt->fetchAll(), "Seller returns list");
     }
 }
