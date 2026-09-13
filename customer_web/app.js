@@ -712,7 +712,7 @@ function updateHeaderUserUI() {
       </div>
       <span>${displayName} ▾</span>
       <div class="fk-user-menu">
-        <a href="#/account" class="fk-menu-item">👤 My Profile</a>
+        <a href="javascript:void(0)" onclick="openAdminProfileModal()" class="fk-menu-item">👤 My Profile (Edit & Logout)</a>
         <a href="#/supercoin" class="fk-menu-item">⚡ SuperCoin Zone</a>
         <a href="#/supercoin" class="fk-menu-item">✨ Flipkart Plus Zone</a>
         <a href="#/account/orders" class="fk-menu-item">📦 Orders</a>
@@ -2854,8 +2854,13 @@ async function renderAdminPage(root, requestedTab = 'overview') {
   const brandName = state.branding?.site_name || 'EzMart';
   const brandLogo = state.branding?.site_logo_url || '';
 
+  const adminName = state.user?.name || 'Marcus George';
+  const adminEmail = state.user?.email || 'admin@flipkart.local';
+  const adminPhone = state.user?.phone || '9876543210';
+  const adminRole = state.user?.role || 'SUPER_ADMIN';
+
   root.innerHTML = `
-    <div class="ez-admin-container" style="display:flex !important; flex-direction:row !important; min-height:100vh; background:#F4F6FA; font-family:'Inter', -apple-system, sans-serif; color:#1A202C;">
+    <div class="ez-admin-container" style="display:flex !important; flex-direction:row !important; min-height:100vh; background:#F4F6FA; font-family:'Inter', -apple-system, sans-serif; color:#1A202C; position:relative;">
       <!-- LEFT SAAS SIDEBAR -->
       <aside class="ez-sidebar" style="width:240px; min-width:240px; background:#FFFFFF; border-right:1px solid #E8ECF4; padding:24px 16px; display:flex; flex-direction:column; flex-shrink:0;">
         <div class="ez-brand-box" style="display:flex; align-items:center; gap:12px; padding:0 12px 20px 12px; border-bottom:1px solid #F0F3F8; margin-bottom:16px;">
@@ -2924,6 +2929,13 @@ async function renderAdminPage(root, requestedTab = 'overview') {
             <span style="font-size:16px;">⚙️</span>
             <span>Settings</span>
           </button>
+
+          <div style="height:1px; background:#E8ECF4; margin:14px 0;"></div>
+
+          <button class="ez-nav-item" onclick="logoutUser()" style="display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:10px; font-size:13px; font-weight:700; border:none; cursor:pointer; background:#FEF2F2; color:#EF4444; text-align:left; width:100%; transition:all 0.2s ease;">
+            <span style="font-size:16px;">🚪</span>
+            <span>Logout / Sign Out</span>
+          </button>
         </nav>
       </aside>
 
@@ -2950,13 +2962,24 @@ async function renderAdminPage(root, requestedTab = 'overview') {
               <span style="position:absolute; top:5px; right:7px; width:7px; height:7px; border-radius:50%; background:#EF4444;"></span>
             </button>
 
-            <div class="ez-user-pill" style="display:flex; align-items:center; gap:10px; background:#FFFFFF; padding:4px 12px 4px 4px; border-radius:24px; border:1px solid #E2E8F0; cursor:pointer;" onclick="showToast('Admin Profile: Marcus George (Super Admin)')">
-              <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" style="width:32px; height:32px; border-radius:50%; object-fit:cover;" alt="Admin Avatar" />
+            <button onclick="openAddProductModal()" title="Add New Product to Store Catalog" style="display:flex; align-items:center; gap:6px; background:linear-gradient(135deg, #10B981 0%, #059669 100%); color:#fff; border:none; padding:7px 16px; border-radius:20px; font-size:12px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(16,185,129,0.3); transition:all 0.2s ease;">
+              <span style="font-size:14px; font-weight:900;">+</span>
+              <span>Add Product</span>
+            </button>
+
+            <!-- PROFILE PILL (Click opens Profile & Edit Popup) -->
+            <div class="ez-user-pill" id="ezAdminUserPill" style="display:flex; align-items:center; gap:10px; background:#FFFFFF; padding:4px 12px 4px 4px; border-radius:24px; border:1px solid #E2E8F0; cursor:pointer; box-shadow:0 2px 4px rgba(0,0,0,0.04); transition:all 0.2s ease;" onclick="openAdminProfileModal()" title="Click to view/edit profile & logout" onmouseover="this.style.borderColor='#FF7A00'" onmouseout="this.style.borderColor='#E2E8F0'">
+              <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:2px solid #FF7A00;" alt="Admin Avatar" />
               <div style="text-align:left;">
-                <div style="font-size:12px; font-weight:700; color:#0F172A; line-height:1.2;">Marcus George</div>
-                <div style="font-size:10px; color:#94A3B8; font-weight:600;">Admin ▾</div>
+                <div id="admPillName" style="font-size:12px; font-weight:700; color:#0F172A; line-height:1.2;">${adminName}</div>
+                <div style="font-size:10px; color:#FF7A00; font-weight:700;">👑 ${adminRole === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin'} ▾</div>
               </div>
             </div>
+
+            <button onclick="logoutUser()" title="Logout" style="display:flex; align-items:center; gap:6px; background:#FEF2F2; color:#EF4444; border:1px solid #FCA5A5; padding:6px 14px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; transition:all 0.2s ease;">
+              <span>🚪</span>
+              <span>Logout</span>
+            </button>
           </div>
         </header>
 
@@ -3002,14 +3025,12 @@ async function renderAdminPage(root, requestedTab = 'overview') {
       if (tabContainer) tabContainer.innerHTML = renderAdminSellersTab(sellers, aToken);
     }
     else if (currentAdminTab === 'users') {
-      const usrRes = await fetch(`${API_BASE}/admin/users?limit=30`, { headers: { 'Authorization': `Bearer ${aToken}` } }).then(r => r.json()).catch(() => null);
+      const usrRes = await fetch(`${API_BASE}/admin/users?limit=20`, { headers: { 'Authorization': `Bearer ${aToken}` } }).then(r => r.json()).catch(() => null);
       const users = usrRes?.data?.items || usrRes?.data || [];
       if (loadingNotice) loadingNotice.style.display = 'none';
       if (tabContainer) tabContainer.innerHTML = renderAdminUsersTab(users, aToken);
     }
     else if (currentAdminTab === 'settings') {
-      const setRes = await fetch(`${API_BASE}/admin/settings`, { headers: { 'Authorization': `Bearer ${aToken}` } }).then(r => r.json()).catch(() => null);
-      cachedAdminSettings = setRes?.data || null;
       if (loadingNotice) loadingNotice.style.display = 'none';
       if (tabContainer) tabContainer.innerHTML = renderAdminSettingsTab(cachedAdminSettings, aToken);
     }
@@ -3025,12 +3046,120 @@ function switchAdminTab(tab) {
   navigateTo(`#/admin/${tab}`);
 }
 
+function openAdminProfileModal() {
+  const modal = document.getElementById('adminProfileModal');
+  if (modal) {
+    modal.style.setProperty('display', 'flex', 'important');
+    modal.style.setProperty('opacity', '1', 'important');
+    modal.style.setProperty('visibility', 'visible', 'important');
+    modal.style.setProperty('pointer-events', 'auto', 'important');
+    modal.style.setProperty('z-index', '999999', 'important');
+    
+    const user = state.user || {};
+    const name = user.name || (user.firstName ? (user.firstName + (user.lastName ? ' ' + user.lastName : '')) : 'Marcus George');
+    const email = user.email || 'admin@flipkart.local';
+    const phone = user.phone || '9876543210';
+    const role = user.role || 'SUPER_ADMIN';
+
+    const nameInput = document.getElementById('admProfName');
+    const emailInput = document.getElementById('admProfEmail');
+    const phoneInput = document.getElementById('admProfPhone');
+    const headerName = document.getElementById('admProfHeaderName');
+    const headerEmail = document.getElementById('admProfHeaderEmail');
+    const headerBadge = document.getElementById('admProfHeaderBadge');
+
+    if (nameInput) nameInput.value = name;
+    if (emailInput) emailInput.value = email;
+    if (phoneInput) phoneInput.value = phone;
+    if (headerName) headerName.textContent = name;
+    if (headerEmail) headerEmail.textContent = email;
+    if (headerBadge) {
+      headerBadge.textContent = role === 'SUPER_ADMIN' ? '👑 SUPER ADMIN' : (role === 'ADMIN' ? '🛡️ STORE ADMIN' : '👤 CUSTOMER');
+    }
+  }
+}
+
+function closeAdminProfileModal() {
+  const modal = document.getElementById('adminProfileModal');
+  if (modal) {
+    modal.style.setProperty('display', 'none', 'important');
+    modal.style.setProperty('opacity', '0', 'important');
+    modal.style.setProperty('visibility', 'hidden', 'important');
+    modal.style.setProperty('pointer-events', 'none', 'important');
+  }
+}
+
+function saveAdminProfile(e) {
+  if (e) e.preventDefault();
+  const name = document.getElementById('admProfName')?.value?.trim();
+  const email = document.getElementById('admProfEmail')?.value?.trim();
+  const phone = document.getElementById('admProfPhone')?.value?.trim();
+
+  if (!name) {
+    showToast('❌ Name cannot be empty');
+    return;
+  }
+
+  if (!state.user) state.user = {};
+  state.user.name = name;
+  const parts = name.split(' ');
+  state.user.firstName = parts[0] || name;
+  state.user.lastName = parts.slice(1).join(' ') || '';
+  if (email) state.user.email = email;
+  if (phone) state.user.phone = phone;
+
+  localStorage.setItem('fk_user', JSON.stringify(state.user));
+
+  const pillName = document.getElementById('admPillName');
+  if (pillName) pillName.textContent = name;
+
+  const headerName = document.getElementById('admProfHeaderName');
+  if (headerName) headerName.textContent = name;
+
+  const headerEmail = document.getElementById('admProfHeaderEmail');
+  if (headerEmail && email) headerEmail.textContent = email;
+
+  updateHeaderUserUI();
+  showToast('✅ Profile updated successfully!');
+  closeAdminProfileModal();
+}
+
+window.openAdminProfileModal = openAdminProfileModal;
+window.closeAdminProfileModal = closeAdminProfileModal;
+window.saveAdminProfile = saveAdminProfile;
+
 // -----------------------------------------------------------------------------
 // TAB 1: OVERVIEW - EXACT EZMART PIXEL-PERFECT SAAS DASHBOARD
 // -----------------------------------------------------------------------------
 function renderAdminOverviewTab(cards, recentOrders, isSuperAdmin) {
   return `
     <div style="max-width:1440px; margin:0 auto; display:flex; flex-direction:column; gap:24px;">
+
+      <!-- QUICK ACTION BAR -->
+      <div style="background:#FFFFFF; border:1px solid #ECEFF5; border-radius:14px; padding:14px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:16px;">⚡</span>
+          <span style="font-size:13px; font-weight:700; color:#0F172A;">Admin Quick Actions:</span>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button onclick="openAddProductModal()" style="background:linear-gradient(135deg, #10B981 0%, #059669 100%); color:#fff; border:none; padding:8px 16px; border-radius:8px; font-size:12px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(16,185,129,0.3);">
+            <span>📦</span>
+            <span>+ Add New Product</span>
+          </button>
+          <button onclick="switchAdminTab('catalog')" style="background:#EFF6FF; color:#2563EB; border:1px solid #BFDBFE; padding:8px 16px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px;">
+            <span>📋</span>
+            <span>View Full Catalog</span>
+          </button>
+          <button onclick="switchAdminTab('orders')" style="background:#F8FAFC; color:#475569; border:1px solid #E2E8F0; padding:8px 16px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px;">
+            <span>🛒</span>
+            <span>Recent Orders</span>
+          </button>
+          <button onclick="switchAdminTab('settings')" style="background:#FAF5FF; color:#7C3AED; border:1px solid #DDD6FE; padding:8px 16px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px;">
+            <span>⚙️</span>
+            <span>.env & Gateways</span>
+          </button>
+        </div>
+      </div>
 
       <!-- ROW 1: TOP 3 KPI CARDS -->
       <div class="ez-kpi-grid" style="display:grid !important; grid-template-columns:repeat(3, minmax(0, 1fr)) !important; gap:20px !important; margin-bottom:0px !important;">
@@ -4844,6 +4973,14 @@ async function deleteAdminProductUI(id) {
     showToast('Error: ' + e.message);
   }
 }
+
+window.openAddProductModal = openAddProductModal;
+window.closeAddProductModal = closeAddProductModal;
+window.submitAddProductForm = submitAddProductForm;
+window.openEditProductModal = openEditProductModal;
+window.closeEditProductModal = closeEditProductModal;
+window.submitEditProductForm = submitEditProductForm;
+window.deleteAdminProductUI = deleteAdminProductUI;
 
 // Explicit Window Global Bindings
 window.openAddProductModal = openAddProductModal;

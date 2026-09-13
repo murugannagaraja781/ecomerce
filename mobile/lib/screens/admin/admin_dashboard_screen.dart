@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/currency_formatter.dart';
+import '../../providers/auth_provider.dart';
 import '../../repositories/seller_admin_repository.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
@@ -116,8 +117,16 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> wit
       appBar: AppBar(
         title: const Text('Flipkart Admin Control Center'),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadAdminData),
-          IconButton(icon: const Icon(Icons.home_outlined), onPressed: () => context.go('/')),
+          IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refresh Data', onPressed: _loadAdminData),
+          IconButton(icon: const Icon(Icons.home_outlined), tooltip: 'Storefront', onPressed: () => context.go('/')),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            tooltip: 'Logout Super Admin',
+            onPressed: () async {
+              await ref.read(authProvider.notifier).logout();
+              if (mounted) context.go('/login');
+            },
+          ),
         ],
         bottom: TabBar(
           controller: _tabController,
