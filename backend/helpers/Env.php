@@ -63,6 +63,14 @@ class Env {
     }
 
     /**
+     * Force reload environment variables from .env file, clearing cache
+     */
+    public static function reload(?string $path = null): void {
+        self::$cache = [];
+        self::load($path);
+    }
+
+    /**
      * Get an environment variable with default fallback
      */
     public static function get(string $key, mixed $default = null): mixed {

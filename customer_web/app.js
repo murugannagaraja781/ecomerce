@@ -3031,8 +3031,10 @@ async function renderAdminPage(root, requestedTab = 'overview') {
       if (tabContainer) tabContainer.innerHTML = renderAdminUsersTab(users, aToken);
     }
     else if (currentAdminTab === 'settings') {
+      const setRes = await fetch(`${API_BASE}/admin/settings`, { headers: { 'Authorization': `Bearer ${aToken}` } }).then(r => r.json()).catch(() => null);
+      const liveSettings = setRes?.data || null;
       if (loadingNotice) loadingNotice.style.display = 'none';
-      if (tabContainer) tabContainer.innerHTML = renderAdminSettingsTab(cachedAdminSettings, aToken);
+      if (tabContainer) tabContainer.innerHTML = renderAdminSettingsTab(liveSettings, aToken);
     }
   } catch (err) {
     if (loadingNotice) {
@@ -3970,6 +3972,11 @@ function renderAdminSettingsTab(settings, aToken) {
   const activePg = (settings?.active_payment_gateway || 'razorpay').toLowerCase();
   const activeSms = (settings?.active_sms_provider || 'local').toLowerCase();
   const rawEnv = settings?.raw_env || '';
+  const pgs = settings?.payment_gateways || {};
+  const sms = settings?.sms_providers || {};
+  const fcm = settings?.fcm || {};
+  const app = settings?.app || {};
+  const db = settings?.database || {};
 
   return `
     <div style="display:flex; flex-direction:column; gap:20px;">
@@ -4157,15 +4164,15 @@ function renderAdminSettingsTab(settings, aToken) {
               <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
                 <div>
                   <label style="font-size:11px; font-weight:700; color:#64748B;">RAZORPAY_KEY_ID</label>
-                  <input type="text" name="RAZORPAY_KEY_ID" id="env_RAZORPAY_KEY_ID" class="fk-input" value="rzp_test_1DP5mmOlF5G5ag" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+                  <input type="text" name="RAZORPAY_KEY_ID" id="env_RAZORPAY_KEY_ID" class="fk-input" value="${pgs.razorpay?.fields?.key_id ?? 'rzp_test_1DP5mmOlF5G5ag'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
                 </div>
                 <div>
                   <label style="font-size:11px; font-weight:700; color:#64748B;">RAZORPAY_KEY_SECRET</label>
-                  <input type="password" name="RAZORPAY_KEY_SECRET" id="env_RAZORPAY_KEY_SECRET" class="fk-input" value="s9P7Wj9Q9Z8X7V6U5T4S3R2Q" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+                  <input type="password" name="RAZORPAY_KEY_SECRET" id="env_RAZORPAY_KEY_SECRET" class="fk-input" value="${pgs.razorpay?.fields?.key_secret ?? 's9P7Wj9Q9Z8X7V6U5T4S3R2Q'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
                 </div>
                 <div>
                   <label style="font-size:11px; font-weight:700; color:#64748B;">RAZORPAY_WEBHOOK_SECRET</label>
-                  <input type="text" name="RAZORPAY_WEBHOOK_SECRET" id="env_RAZORPAY_WEBHOOK_SECRET" class="fk-input" value="whsec_flipkart_rzp_live_2026" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+                  <input type="text" name="RAZORPAY_WEBHOOK_SECRET" id="env_RAZORPAY_WEBHOOK_SECRET" class="fk-input" value="${pgs.razorpay?.fields?.webhook_secret ?? 'whsec_flipkart_rzp_live_2026'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
                 </div>
               </div>
             </div>
@@ -4179,17 +4186,17 @@ function renderAdminSettingsTab(settings, aToken) {
               <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
                 <div>
                   <label style="font-size:11px; font-weight:700; color:#64748B;">CASHFREE_APP_ID</label>
-                  <input type="text" name="CASHFREE_APP_ID" id="env_CASHFREE_APP_ID" class="fk-input" value="TEST10023458a7b9c1d2e3f4g5h6" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+                  <input type="text" name="CASHFREE_APP_ID" id="env_CASHFREE_APP_ID" class="fk-input" value="${pgs.cashfree?.fields?.app_id ?? 'TEST10023458a7b9c1d2e3f4g5h6'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
                 </div>
                 <div>
                   <label style="font-size:11px; font-weight:700; color:#64748B;">CASHFREE_SECRET_KEY</label>
-                  <input type="password" name="CASHFREE_SECRET_KEY" id="env_CASHFREE_SECRET_KEY" class="fk-input" value="cfsk_ma_test_9876543210abcdef" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+                  <input type="password" name="CASHFREE_SECRET_KEY" id="env_CASHFREE_SECRET_KEY" class="fk-input" value="${pgs.cashfree?.fields?.secret_key ?? 'cfsk_ma_test_9876543210abcdef'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
                 </div>
                 <div>
                   <label style="font-size:11px; font-weight:700; color:#64748B;">CASHFREE_ENV</label>
                   <select name="CASHFREE_ENV" class="fk-input" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;">
-                    <option value="SANDBOX" selected>SANDBOX (Testing)</option>
-                    <option value="PRODUCTION">PRODUCTION (Live Payments)</option>
+                    <option value="SANDBOX" ${(pgs.cashfree?.fields?.env || 'SANDBOX') === 'SANDBOX' ? 'selected' : ''}>SANDBOX (Testing)</option>
+                    <option value="PRODUCTION" ${(pgs.cashfree?.fields?.env || '') === 'PRODUCTION' ? 'selected' : ''}>PRODUCTION (Live Payments)</option>
                   </select>
                 </div>
               </div>
@@ -4204,21 +4211,21 @@ function renderAdminSettingsTab(settings, aToken) {
               <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px;">
                 <div>
                   <label style="font-size:11px; font-weight:700; color:#64748B;">PHONEPE_MERCHANT_ID</label>
-                  <input type="text" name="PHONEPE_MERCHANT_ID" class="fk-input" value="PGTESTPAYUAT" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+                  <input type="text" name="PHONEPE_MERCHANT_ID" class="fk-input" value="${pgs.phonepe?.fields?.merchant_id ?? 'PGTESTPAYUAT'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
                 </div>
                 <div>
                   <label style="font-size:11px; font-weight:700; color:#64748B;">PHONEPE_SALT_KEY</label>
-                  <input type="password" name="PHONEPE_SALT_KEY" class="fk-input" value="099eb0cd-02cf-4e2a-8aca-3e6c6aff0399" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+                  <input type="password" name="PHONEPE_SALT_KEY" class="fk-input" value="${pgs.phonepe?.fields?.salt_key ?? '099eb0cd-02cf-4e2a-8aca-3e6c6aff0399'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
                 </div>
                 <div>
                   <label style="font-size:11px; font-weight:700; color:#64748B;">PHONEPE_SALT_INDEX</label>
-                  <input type="text" name="PHONEPE_SALT_INDEX" class="fk-input" value="1" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+                  <input type="text" name="PHONEPE_SALT_INDEX" class="fk-input" value="${pgs.phonepe?.fields?.salt_index ?? '1'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
                 </div>
                 <div>
                   <label style="font-size:11px; font-weight:700; color:#64748B;">PHONEPE_ENV</label>
                   <select name="PHONEPE_ENV" class="fk-input" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;">
-                    <option value="UAT" selected>UAT (Test)</option>
-                    <option value="PRODUCTION">PRODUCTION (Live)</option>
+                    <option value="UAT" ${(pgs.phonepe?.fields?.env || 'UAT') === 'UAT' ? 'selected' : ''}>UAT (Test)</option>
+                    <option value="PRODUCTION" ${(pgs.phonepe?.fields?.env || '') === 'PRODUCTION' ? 'selected' : ''}>PRODUCTION (Live)</option>
                   </select>
                 </div>
               </div>
@@ -4233,21 +4240,21 @@ function renderAdminSettingsTab(settings, aToken) {
               <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px;">
                 <div>
                   <label style="font-size:11px; font-weight:700; color:#64748B;">PAYTM_MID</label>
-                  <input type="text" name="PAYTM_MID" class="fk-input" value="FLIPKART_PAYTM_TEST_MID_01" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+                  <input type="text" name="PAYTM_MID" class="fk-input" value="${pgs.paytm?.fields?.mid ?? 'FLIPKART_PAYTM_TEST_MID_01'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
                 </div>
                 <div>
                   <label style="font-size:11px; font-weight:700; color:#64748B;">PAYTM_MERCHANT_KEY</label>
-                  <input type="password" name="PAYTM_MERCHANT_KEY" class="fk-input" value="FLIPKART_PAYTM_MERCHANT_KEY_TEST" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+                  <input type="password" name="PAYTM_MERCHANT_KEY" class="fk-input" value="${pgs.paytm?.fields?.merchant_key ?? 'FLIPKART_PAYTM_MERCHANT_KEY_TEST'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
                 </div>
                 <div>
                   <label style="font-size:11px; font-weight:700; color:#64748B;">PAYTM_WEBSITE</label>
-                  <input type="text" name="PAYTM_WEBSITE" class="fk-input" value="WEBSTAGING" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+                  <input type="text" name="PAYTM_WEBSITE" class="fk-input" value="${pgs.paytm?.fields?.website ?? 'WEBSTAGING'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
                 </div>
                 <div>
                   <label style="font-size:11px; font-weight:700; color:#64748B;">PAYTM_ENV</label>
                   <select name="PAYTM_ENV" class="fk-input" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;">
-                    <option value="TEST" selected>TEST Staging</option>
-                    <option value="PROD">PROD Live</option>
+                    <option value="TEST" ${(pgs.paytm?.fields?.env || 'TEST') === 'TEST' ? 'selected' : ''}>TEST Staging</option>
+                    <option value="PROD" ${(pgs.paytm?.fields?.env || '') === 'PROD' ? 'selected' : ''}>PROD Live</option>
                   </select>
                 </div>
               </div>
@@ -4262,17 +4269,17 @@ function renderAdminSettingsTab(settings, aToken) {
               <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
                 <div>
                   <label style="font-size:11px; font-weight:700; color:#64748B;">PAYU_MERCHANT_KEY</label>
-                  <input type="text" name="PAYU_MERCHANT_KEY" class="fk-input" value="gtKFFx" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+                  <input type="text" name="PAYU_MERCHANT_KEY" class="fk-input" value="${pgs.payu?.fields?.merchant_key ?? 'gtKFFx'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
                 </div>
                 <div>
                   <label style="font-size:11px; font-weight:700; color:#64748B;">PAYU_SALT</label>
-                  <input type="password" name="PAYU_SALT" class="fk-input" value="eCwWELxi" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+                  <input type="password" name="PAYU_SALT" class="fk-input" value="${pgs.payu?.fields?.salt ?? 'eCwWELxi'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
                 </div>
                 <div>
                   <label style="font-size:11px; font-weight:700; color:#64748B;">PAYU_ENV</label>
                   <select name="PAYU_ENV" class="fk-input" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;">
-                    <option value="TEST" selected>TEST Environment</option>
-                    <option value="LIVE">LIVE Production</option>
+                    <option value="TEST" ${(pgs.payu?.fields?.env || 'TEST') === 'TEST' ? 'selected' : ''}>TEST Environment</option>
+                    <option value="LIVE" ${(pgs.payu?.fields?.env || '') === 'LIVE' ? 'selected' : ''}>LIVE Production</option>
                   </select>
                 </div>
               </div>
@@ -4373,19 +4380,19 @@ function renderAdminSettingsTab(settings, aToken) {
           <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px; padding:16px; display:grid; grid-template-columns:1fr 1fr; gap:16px;">
             <div>
               <label style="font-size:11px; font-weight:700; color:#64748B;">FAST2SMS_API_KEY</label>
-              <input type="password" name="FAST2SMS_API_KEY" class="fk-input" value="f2s_live_sample_key_9876543210abcdef" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+              <input type="password" name="FAST2SMS_API_KEY" class="fk-input" value="${sms.fast2sms?.fields?.api_key ?? 'f2s_live_sample_key_9876543210abcdef'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
             </div>
             <div>
               <label style="font-size:11px; font-weight:700; color:#64748B;">MSG91_AUTH_KEY</label>
-              <input type="password" name="MSG91_AUTH_KEY" class="fk-input" value="msg91_auth_live_sample_key_12345" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+              <input type="password" name="MSG91_AUTH_KEY" class="fk-input" value="${sms.msg91?.fields?.auth_key ?? 'msg91_auth_live_sample_key_12345'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
             </div>
             <div>
               <label style="font-size:11px; font-weight:700; color:#64748B;">TWILIO_ACCOUNT_SID</label>
-              <input type="text" name="TWILIO_ACCOUNT_SID" class="fk-input" value="AC_twilio_sample_sid_1234567890abcdef" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+              <input type="text" name="TWILIO_ACCOUNT_SID" class="fk-input" value="${sms.twilio?.fields?.account_sid ?? 'AC_twilio_sample_sid_1234567890abcdef'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
             </div>
             <div>
               <label style="font-size:11px; font-weight:700; color:#64748B;">TEXTLOCAL_API_KEY</label>
-              <input type="password" name="TEXTLOCAL_API_KEY" class="fk-input" value="textlocal_api_key_sample_12345" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+              <input type="password" name="TEXTLOCAL_API_KEY" class="fk-input" value="${sms.textlocal?.fields?.api_key ?? 'textlocal_api_key_sample_12345'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
             </div>
           </div>
 
@@ -4409,15 +4416,15 @@ function renderAdminSettingsTab(settings, aToken) {
         <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px; padding:16px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
           <div>
             <label style="font-size:11px; font-weight:700; color:#64748B;">FCM_SERVER_KEY</label>
-            <input type="password" name="FCM_SERVER_KEY" id="env_FCM_SERVER_KEY" class="fk-input" value="AAAA_sample_fcm_server_key_flipkart_cloud_messaging_2026" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+            <input type="password" name="FCM_SERVER_KEY" id="env_FCM_SERVER_KEY" class="fk-input" value="${fcm.server_key ?? 'AAAA_sample_fcm_server_key_flipkart_cloud_messaging_2026'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
           </div>
           <div>
             <label style="font-size:11px; font-weight:700; color:#64748B;">FCM_PROJECT_ID</label>
-            <input type="text" name="FCM_PROJECT_ID" id="env_FCM_PROJECT_ID" class="fk-input" value="flipkart-mobile-production" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+            <input type="text" name="FCM_PROJECT_ID" id="env_FCM_PROJECT_ID" class="fk-input" value="${fcm.project_id ?? 'flipkart-mobile-production'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
           </div>
           <div>
             <label style="font-size:11px; font-weight:700; color:#64748B;">FCM_SENDER_ID</label>
-            <input type="text" name="FCM_SENDER_ID" id="env_FCM_SENDER_ID" class="fk-input" value="837192837192" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
+            <input type="text" name="FCM_SENDER_ID" id="env_FCM_SENDER_ID" class="fk-input" value="${fcm.sender_id ?? '837192837192'}" style="width:100%; font-size:12px; padding:8px; border:1px solid #CBD5E1; border-radius:4px;" />
           </div>
         </div>
       </div>
@@ -4500,22 +4507,45 @@ function selectActiveSmsProvider(prov) {
 }
 
 async function saveAdminSettings() {
-  const aToken = localStorage.getItem('fk_admin_token') || localStorage.getItem('fk_token');
+  const aToken = await getAdminAuthToken();
   const activePg = document.getElementById('activePgInput')?.value || 'razorpay';
   const activeSms = document.getElementById('activeSmsInput')?.value || 'local';
 
-  // Gather form values
+  // Gather all form inputs dynamically from payment and SMS forms
   const payload = {
     ACTIVE_PAYMENT_GATEWAY: activePg,
-    ACTIVE_SMS_PROVIDER: activeSms,
-    RAZORPAY_KEY_ID: document.getElementById('env_RAZORPAY_KEY_ID')?.value || 'rzp_test_1DP5mmOlF5G5ag',
-    RAZORPAY_KEY_SECRET: document.getElementById('env_RAZORPAY_KEY_SECRET')?.value || 's9P7Wj9Q9Z8X7V6U5T4S3R2Q',
-    RAZORPAY_WEBHOOK_SECRET: document.getElementById('env_RAZORPAY_WEBHOOK_SECRET')?.value || 'whsec_flipkart_rzp_live_2026',
-    CASHFREE_APP_ID: document.getElementById('env_CASHFREE_APP_ID')?.value || 'TEST10023458',
-    CASHFREE_SECRET_KEY: document.getElementById('env_CASHFREE_SECRET_KEY')?.value || 'cfsk_ma_test_9876543210abcdef',
-    FCM_SERVER_KEY: document.getElementById('env_FCM_SERVER_KEY')?.value || 'AAAA_sample_fcm_server_key',
-    FCM_PROJECT_ID: document.getElementById('env_FCM_PROJECT_ID')?.value || 'flipkart-mobile-production'
+    ACTIVE_SMS_PROVIDER: activeSms
   };
+
+  const formIds = ['paymentGatewaysForm', 'smsProvidersForm'];
+  formIds.forEach(id => {
+    const form = document.getElementById(id);
+    if (form) {
+      const inputs = form.querySelectorAll('input, select, textarea');
+      inputs.forEach(inp => {
+        if (inp.name && inp.type !== 'radio') {
+          payload[inp.name] = inp.value;
+        }
+      });
+    }
+  });
+
+  const keys = [
+    'RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET',
+    'CASHFREE_APP_ID', 'CASHFREE_SECRET_KEY', 'CASHFREE_ENV',
+    'PHONEPE_MERCHANT_ID', 'PHONEPE_SALT_KEY', 'PHONEPE_SALT_INDEX', 'PHONEPE_ENV',
+    'PAYTM_MID', 'PAYTM_MERCHANT_KEY', 'PAYTM_WEBSITE', 'PAYTM_ENV',
+    'PAYU_MERCHANT_KEY', 'PAYU_SALT', 'PAYU_ENV',
+    'FAST2SMS_API_KEY', 'MSG91_AUTH_KEY', 'TWILIO_ACCOUNT_SID', 'TEXTLOCAL_API_KEY',
+    'FCM_SERVER_KEY', 'FCM_PROJECT_ID', 'FCM_SENDER_ID'
+  ];
+
+  keys.forEach(k => {
+    const el = document.getElementById(`env_${k}`) || document.querySelector(`[name="${k}"]`);
+    if (el && el.value !== undefined) {
+      payload[k] = el.value;
+    }
+  });
 
   showToast('💾 Saving .env configuration to backend...');
 
@@ -4530,7 +4560,7 @@ async function saveAdminSettings() {
     }).then(r => r.json());
 
     if (res && res.success) {
-      alert(`🎉 CONFIGURATION SAVED SUCCESSFULLY!\n\nActive Payment Gateway: ${activePg.toUpperCase()}\nActive SMS Gateway: ${activeSms.toUpperCase()}\n\nLive backend .env updated atomically.`);
+      alert(`🎉 CONFIGURATION SAVED SUCCESSFULLY!\n\nActive Payment Gateway: ${activePg.toUpperCase()}\nActive SMS Gateway: ${activeSms.toUpperCase()}\n\nLive backend/.env file updated atomically.`);
       showToast('✅ Configuration updated and active!');
       renderAdminPage(document.getElementById('appRoot'), 'settings');
     } else {
@@ -4544,7 +4574,7 @@ async function saveAdminSettings() {
 async function saveRawEnvContent() {
   const content = document.getElementById('rawEnvTextarea')?.value;
   if (!content) return;
-  const aToken = localStorage.getItem('fk_admin_token') || localStorage.getItem('fk_token');
+  const aToken = await getAdminAuthToken();
 
   showToast('💾 Saving raw .env file...');
   try {
@@ -4560,6 +4590,7 @@ async function saveRawEnvContent() {
     if (res && res.success) {
       alert('🎉 Raw backend/.env file written successfully! All services reloaded.');
       showToast('✅ .env file saved!');
+      renderAdminPage(document.getElementById('appRoot'), 'settings');
     } else {
       alert(`⚠️ Failed to save .env file: ${res?.message || 'Error'}`);
     }
@@ -4570,7 +4601,7 @@ async function saveRawEnvContent() {
 
 async function testPaymentGatewayUI(gw) {
   const gateway = gw || document.getElementById('activePgInput')?.value || 'razorpay';
-  const aToken = localStorage.getItem('fk_admin_token') || localStorage.getItem('fk_token');
+  const aToken = await getAdminAuthToken();
 
   showToast(`Testing connectivity with ${gateway.toUpperCase()}...`);
   try {
@@ -4596,7 +4627,7 @@ async function testPaymentGatewayUI(gw) {
 async function testSmsGatewayUI() {
   const provider = document.getElementById('activeSmsInput')?.value || 'local';
   const phone = document.getElementById('testSmsPhoneInput')?.value || '9876543210';
-  const aToken = localStorage.getItem('fk_admin_token') || localStorage.getItem('fk_token');
+  const aToken = await getAdminAuthToken();
 
   showToast(`Dispatching test SMS via ${provider.toUpperCase()} to +91-${phone}...`);
   try {
@@ -4620,7 +4651,7 @@ async function testSmsGatewayUI() {
 }
 
 async function testFcmNotificationUI() {
-  const aToken = localStorage.getItem('fk_admin_token') || localStorage.getItem('fk_token');
+  const aToken = await getAdminAuthToken();
   showToast('Testing FCM Push Notification dispatch...');
   try {
     const res = await fetch(`${API_BASE}/admin/settings/test-fcm`, {
